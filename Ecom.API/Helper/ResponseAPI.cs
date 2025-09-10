@@ -14,6 +14,7 @@
                 200 => "Done",
                 400 => "Bad Request",
                 401 => "Un Authrized",
+                404 => "Not Found",
                 500 => "Server Error",
                 _ => null,
             };
