@@ -99,10 +99,10 @@ namespace Ecom.infrastructure.Data.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("NewPrice")
-                        .HasColumnType("decimal(18.2)");
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("OldPrice")
-                        .HasColumnType("decimal(18.2)");
+                        .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
 

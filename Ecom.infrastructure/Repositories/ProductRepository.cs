@@ -1,91 +1,110 @@
-﻿using AutoMapper;
+using AutoMapper;
 using Ecom.core.DTO;
 using Ecom.core.Entities.Product;
+using Ecom.core.Exceptions;
 using Ecom.core.Interfaces;
 using Ecom.core.Services;
 using Ecom.infrastructure.Data;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Ecom.infrastructure.Repositories
 {
-    internal class ProductRepository : GenericRepository<Product>, IProductRepository
+    public class ProductRepository : GenericRepository<Product>, IProductRepository
     {
-        private readonly AppDbContext context;
-        private readonly IMapper mapper;
-        private readonly IImageManagmentService imageManagmentService;
-        public ProductRepository(AppDbContext context, IMapper mapper, IImageManagmentService imageManagmentService) : base(context)
+        private readonly IMapper _mapper;
+        private readonly IImageManagementService _imageService;
+
+        public ProductRepository(AppDbContext context, IMapper mapper, IImageManagementService imageService) : base(context)
         {
-            this.context = context;
-            this.mapper = mapper;
-            this.imageManagmentService = imageManagmentService;
+            _mapper = mapper;
+            _imageService = imageService;
         }
 
-        public async Task<bool> AddAsync(AddProductDTO addProductDTO)
+        public async Task<Product> AddAsync(AddProductDTO addProductDTO)
         {
-            if(addProductDTO is null)
+            await EnsureCategoryExistsAsync(addProductDTO.CategoryId);
+
+            var product = _mapper.Map<Product>(addProductDTO);
+            var imagePaths = await SaveImagesAsync(addProductDTO.Photos, addProductDTO.Name);
+            try
             {
+                product.Photos = imagePaths.Select(path => new Photo { ImageName = path }).ToList();
+                await _context.Products.AddAsync(product);
+                await _context.SaveChangesAsync();
+            }
+            catch
+            {
+                DeleteImages(imagePaths);
+                throw;
+            }
+            return product;
+        }
+
+        public async Task UpdateAsync(int id, UpdateProductDTO updateProductDTO)
+        {
+            var product = await _context.Products.Include(p => p.Photos).FirstOrDefaultAsync(p => p.Id == id)
+                ?? throw new NotFoundException($"Product with id {id} was not found.");
+            await EnsureCategoryExistsAsync(updateProductDTO.CategoryId);
+
+            _mapper.Map(updateProductDTO, product);
+
+            var newImagePaths = await SaveImagesAsync(updateProductDTO.Photos, updateProductDTO.Name);
+            var oldImagePaths = new List<string>();
+            if (newImagePaths.Count > 0)
+            {
+                oldImagePaths = product.Photos.Select(p => p.ImageName).ToList();
+                _context.Photos.RemoveRange(product.Photos);
+                foreach (var path in newImagePaths)
+                {
+                    product.Photos.Add(new Photo { ImageName = path });
+                }
+            }
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch
+            {
+                DeleteImages(newImagePaths);
+                throw;
+            }
+            DeleteImages(oldImagePaths);
+        }
+
+        public override async Task<bool> DeleteAsync(int id)
+        {
+            var product = await _context.Products.Include(p => p.Photos).FirstOrDefaultAsync(p => p.Id == id);
+            if (product is null)
                 return false;
-            }
-            var product=mapper.Map<Product>(addProductDTO);
-            await context.Products.AddAsync(product);
-            await context.SaveChangesAsync();
-            var ImagePath = await imageManagmentService.AddImageAsync(addProductDTO.Photo, addProductDTO.Name);
-            var photo = ImagePath.Select(path => new Photo
-            {
-                ImageName = path,
-                ProductId= product.Id,
 
-            }).ToList();
-            await context.AddRangeAsync(photo);
-            await context.SaveChangesAsync();
+            var imagePaths = product.Photos.Select(p => p.ImageName).ToList();
+            _context.Products.Remove(product);
+            await _context.SaveChangesAsync();
+            DeleteImages(imagePaths);
             return true;
         }
 
-        
-
-        public async Task<bool> UpdateAsync(UpdateProductDTO updateProductDTO)
+        private async Task EnsureCategoryExistsAsync(int categoryId)
         {
-            if(updateProductDTO is null)
-                { return false; }
-            var FindProduct = await context.Products.Include(m => m.Category)
-                .Include(m=>m.Photos).FirstOrDefaultAsync(m=>m.Id == updateProductDTO.Id);
-            if(FindProduct is null)
-                { return false; }
-            mapper.Map(updateProductDTO, FindProduct);
-            var FindPhoto= await context.Photos.Where(m=>m.ProductId==updateProductDTO.Id).ToListAsync();
-            foreach(var item in FindPhoto)
-            {
-                imageManagmentService.DeleteImageAsync(item.ImageName);
-            }
-            context.Photos.RemoveRange(FindPhoto);
-            var ImagePath=await imageManagmentService.AddImageAsync(updateProductDTO.Photo,updateProductDTO.Name);
-            var photo = ImagePath.Select(path => new Photo
-            {
-                ImageName = path,
-                ProductId = updateProductDTO.Id
-            }).ToList();
-
-            await context.Photos.AddRangeAsync(photo);
-
-            await context.SaveChangesAsync();
-            return true;
-
+            if (!await _context.Categories.AnyAsync(c => c.Id == categoryId))
+                throw new BadRequestException($"Category with id {categoryId} does not exist.");
         }
 
-        public async Task DeleteAsync(Product product)
+        private async Task<List<string>> SaveImagesAsync(IFormFileCollection? files, string productName)
         {
-            var photo = await context.Photos.Where(m=>m.ProductId==product.Id).ToListAsync();
-            foreach (var item in photo)
+            if (files is null || files.Count == 0)
+                return new List<string>();
+            return await _imageService.AddImageAsync(files, productName);
+        }
+
+        private void DeleteImages(IEnumerable<string> paths)
+        {
+            foreach (var path in paths)
             {
-                imageManagmentService.DeleteImageAsync(item.ImageName);
+                _imageService.DeleteImage(path);
             }
-            context.Products.Remove(product);
-            await context.SaveChangesAsync();
         }
     }
 }

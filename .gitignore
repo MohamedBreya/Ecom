@@ -361,3 +361,9 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# User-uploaded product images (keep the folder itself)
+Ecom.API/wwwroot/Images/*
+!Ecom.API/wwwroot/Images/.gitkeep
+
+# Local environment overrides
+.env

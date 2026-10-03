@@ -1,42 +1,39 @@
-﻿using AutoMapper;
+using AutoMapper;
 using Ecom.core.Interfaces;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Ecom.API.Controllers
 {
-
+    /// <summary>Endpoints for exercising error handling. They only respond in the Development environment.</summary>
+    [Route("api/bug")]
+    [ApiExplorerSettings(IgnoreApi = true)]
     public class BugController : BaseController
     {
-        public BugController(IUnitOfWork work, IMapper mapper) : base(work, mapper)
+        private readonly IWebHostEnvironment _environment;
+
+        public BugController(IUnitOfWork work, IMapper mapper, IWebHostEnvironment environment) : base(work, mapper)
         {
+            _environment = environment;
         }
+
         [HttpGet("not-found")]
-        public async Task<ActionResult> GetNotFound()
-        {
-            var category = await work.CategoryRepository.GetByIdAsync(100);
-            if (category is null)
-                return NotFound();
-            return Ok(category);
-        }
+        public IActionResult GetNotFound() => NotFound();
+
         [HttpGet("server-error")]
-        public async Task<ActionResult> GetServerError()
+        public IActionResult GetServerError()
         {
-            var category = await work.CategoryRepository.GetByIdAsync(100);
-            category.Name = "";
-            return Ok(category);
+            if (!_environment.IsDevelopment())
+                return NotFound();
+
+            throw new InvalidOperationException("Simulated server error.");
         }
 
-        [HttpGet("bad-request/{id}")]
-        public async Task<ActionResult> GetBadRequest(int id)
-        {
-            return Ok();
-        }
+        [HttpGet("bad-request/{id:int}")]
+        public IActionResult GetBadRequest(int id)
+            => _environment.IsDevelopment() ? Ok() : NotFound();
 
-        [HttpGet("bad-request/")]
-        public async Task<ActionResult> GetBadRequest()
-        {
-            return BadRequest();
-        }
+        [HttpGet("bad-request")]
+        public IActionResult GetBadRequest()
+            => _environment.IsDevelopment() ? BadRequest() : NotFound();
     }
 }

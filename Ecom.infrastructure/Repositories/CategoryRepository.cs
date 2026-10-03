@@ -1,12 +1,7 @@
-﻿using Ecom.core.Entities.Product;
+using Ecom.core.Entities.Product;
 using Ecom.core.Interfaces;
 using Ecom.infrastructure.Data;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Linq.Expressions;
-using System.Text;
-using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 
 namespace Ecom.infrastructure.Repositories
 {
@@ -16,5 +11,7 @@ namespace Ecom.infrastructure.Repositories
         {
         }
 
-    }  
+        public Task<bool> HasProductsAsync(int categoryId)
+            => _context.Products.AnyAsync(p => p.CategoryId == categoryId);
+    }
 }

@@ -1,6 +1,61 @@
 @Ecom.API_HostAddress = http://localhost:5159
 
-GET {{Ecom.API_HostAddress}}/weatherforecast/
+### Categories
+GET {{Ecom.API_HostAddress}}/api/categories
 Accept: application/json
 
 ###
+GET {{Ecom.API_HostAddress}}/api/categories/1
+Accept: application/json
+
+###
+POST {{Ecom.API_HostAddress}}/api/categories
+Content-Type: application/json
+
+{ "name": "Phones", "description": "Smartphones and accessories" }
+
+###
+PUT {{Ecom.API_HostAddress}}/api/categories/1
+Content-Type: application/json
+
+{ "name": "Phones", "description": "Updated description" }
+
+###
+DELETE {{Ecom.API_HostAddress}}/api/categories/2
+
+### Products
+GET {{Ecom.API_HostAddress}}/api/products
+Accept: application/json
+
+###
+GET {{Ecom.API_HostAddress}}/api/products/1
+Accept: application/json
+
+###
+POST {{Ecom.API_HostAddress}}/api/products
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="Name"
+
+Phone X
+--boundary
+Content-Disposition: form-data; name="Description"
+
+A very good phone
+--boundary
+Content-Disposition: form-data; name="NewPrice"
+
+499.99
+--boundary
+Content-Disposition: form-data; name="OldPrice"
+
+599.99
+--boundary
+Content-Disposition: form-data; name="CategoryId"
+
+1
+--boundary--
+
+###
+DELETE {{Ecom.API_HostAddress}}/api/products/2

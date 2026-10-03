@@ -1,17 +1,19 @@
-﻿using Ecom.API.Helper;
-using Microsoft.AspNetCore.Http;
+using Ecom.API.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Ecom.API.Controllers
 {
-    [Route("errors/{statusCode}")]
+    /// <summary>
+    /// Target of <c>UseStatusCodePagesWithReExecute</c>: gives bodiless responses (unknown route, 405, ...)
+    /// the standard error envelope.
+    /// </summary>
+    [Route("errors/{statusCode:int}")]
     [ApiController]
+    [ApiExplorerSettings(IgnoreApi = true)]
     public class ErrorController : ControllerBase
     {
-        [HttpGet]
+        [HttpGet, HttpPost, HttpPut, HttpDelete, HttpPatch]
         public IActionResult Error(int statusCode)
-        {
-            return new ObjectResult(new ResponseAPI(statusCode));
-        }
+            => new ObjectResult(new ApiErrorResponse(statusCode)) { StatusCode = statusCode };
     }
 }

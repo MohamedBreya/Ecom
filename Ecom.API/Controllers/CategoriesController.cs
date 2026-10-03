@@ -1,96 +1,78 @@
-﻿using AutoMapper;
-using Ecom.API.Helper;
+using AutoMapper;
+using Ecom.API.Models;
 using Ecom.core.DTO;
 using Ecom.core.Entities.Product;
+using Ecom.core.Exceptions;
 using Ecom.core.Interfaces;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.AspNetCore.Mvc;
-using System.Reflection.Metadata.Ecma335;
 
 namespace Ecom.API.Controllers
 {
+    [Route("api/categories")]
     public class CategoriesController : BaseController
     {
         public CategoriesController(IUnitOfWork work, IMapper mapper) : base(work, mapper)
         {
         }
 
-        [HttpGet("get-all")]
-        public async Task<IActionResult> get()
+        [HttpGet]
+        [ProducesResponseType(typeof(ApiResponse<List<CategoryResponseDTO>>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetAll()
         {
-            try
-            {
-                var category= await work.CategoryRepository.GetAllAsync();
-                if (category is null)
-                    return BadRequest(new ResponseAPI(400));
-                else
-                    return Ok(category);
+            var categories = await work.CategoryRepository.GetAllAsync();
+            return Ok(new ApiResponse<List<CategoryResponseDTO>>(200, mapper.Map<List<CategoryResponseDTO>>(categories)));
+        }
 
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(ex.Message);
-            }
-        }
-        [HttpGet("get-by-id/{id}")]
-        public async Task<IActionResult> getbyId(int id)
+        [HttpGet("{id:int}")]
+        [ProducesResponseType(typeof(ApiResponse<CategoryResponseDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetById(int id)
         {
-            try
-            {
-                var category = await work.CategoryRepository.GetByIdAsync(id);
-                if (category is null)
-                    return BadRequest(new ResponseAPI(400,$"Not Found Category Of Id : {id}"));
-                else
-                    return Ok(category);
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(ex.Message);
-            }
+            var category = await FindAsync(id);
+            return Ok(new ApiResponse<CategoryResponseDTO>(200, mapper.Map<CategoryResponseDTO>(category)));
+        }
 
-        }
-        [HttpPost("add-category")]
-        public async Task<IActionResult> add(CategoryDTO categoryDTO)
+        [HttpPost]
+        [ProducesResponseType(typeof(ApiResponse<CategoryResponseDTO>), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> Create(CategoryDTO categoryDTO)
         {
-            try
-            {
-                var category = mapper.Map<Category>(categoryDTO);
-                await work.CategoryRepository.AddAsync(category);
-                return Ok(new ResponseAPI(200 , "New Item Has Been Added" ));
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(ex.Message);
-            }
-        }
-        [HttpPut("update-category")]
-        public async Task<IActionResult>update(UpdateCategoryDTO updatecategoryDTO)
-        {
-            try
-            {
-                var category = mapper.Map<Category>(updatecategoryDTO);
-                await work.CategoryRepository.UpdateAsync(category);
-                return Ok(new ResponseAPI(200,"Item Has Been Updated"));
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(ex.Message);
-            }
-        }
-        [HttpDelete("delete-category/{id}")]
-        public async Task<IActionResult>delete(int id)
-        {
-            try
-            {
-                await work.CategoryRepository.DeleteAsync(id);
-                return Ok(new ResponseAPI(200,"New Item Has Been Deleted" ));
-            }
-            catch (Exception ex)
-            {
+            var category = mapper.Map<Category>(categoryDTO);
+            await work.CategoryRepository.AddAsync(category);
 
-                return BadRequest(ex.Message);
-            }
+            var response = new ApiResponse<CategoryResponseDTO>(201, mapper.Map<CategoryResponseDTO>(category), "Category created.");
+            return CreatedAtAction(nameof(GetById), new { id = category.Id }, response);
         }
+
+        [HttpPut("{id:int}")]
+        [ProducesResponseType(typeof(ApiResponse<CategoryResponseDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> Update(int id, CategoryDTO categoryDTO)
+        {
+            var category = await FindAsync(id);
+            mapper.Map(categoryDTO, category);
+            await work.CategoryRepository.UpdateAsync(category);
+
+            return Ok(new ApiResponse<CategoryResponseDTO>(200, mapper.Map<CategoryResponseDTO>(category), "Category updated."));
+        }
+
+        [HttpDelete("{id:int}")]
+        [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status409Conflict)]
+        public async Task<IActionResult> Delete(int id)
+        {
+            await FindAsync(id);
+            if (await work.CategoryRepository.HasProductsAsync(id))
+                throw new ConflictException("The category still has products. Move or delete them first.");
+
+            await work.CategoryRepository.DeleteAsync(id);
+            return Ok(new ApiResponse(200, "Category deleted."));
+        }
+
+        private async Task<Category> FindAsync(int id)
+            => await work.CategoryRepository.GetByIdAsync(id)
+               ?? throw new NotFoundException($"Category with id {id} was not found.");
     }
 }
